@@ -1,0 +1,6 @@
+BEGIN;
+
+DROP TABLE IF EXISTS revoked_keys ;
+
+COMMIT;
+

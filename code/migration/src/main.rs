@@ -1,5 +1,3 @@
-pub mod lib;
-
 use sea_orm_migration::prelude::*;
 
 #[tokio::main]
