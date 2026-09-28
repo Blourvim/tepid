@@ -1,3 +1,5 @@
+pub mod bloom;
+
 use std::{
     io::{self, Read, Write},
     net::{Shutdown, TcpListener, TcpStream},
@@ -5,7 +7,7 @@ use std::{
 };
 
 fn main() -> io::Result<()> {
-    let backend_listener = TcpListener::bind("0.0.0.0:3000")?;
+    let backend_listener = TcpListener::bind("0.0.0.0:3002")?;
 
     thread::spawn(move || {
         for stream in backend_listener.incoming().flatten() {
@@ -30,7 +32,7 @@ fn main() -> io::Result<()> {
 }
 
 fn handle(client: TcpStream) -> io::Result<()> {
-    let mut backend = TcpStream::connect("127.0.0.1:3000")?;
+    let mut backend = TcpStream::connect("127.0.0.1:3002")?;
 
     let mut req_reader = client.try_clone()?;   
     let mut req_writer = backend.try_clone()?; 
