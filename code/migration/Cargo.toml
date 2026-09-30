@@ -10,14 +10,9 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
+chrono = "0.4.45"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+entity = {path="../entity/"}
 
-[dependencies.sea-orm-migration]
-features = [
-    # Enable at least one `ASYNC_RUNTIME` and `DATABASE_DRIVER` feature if you want to run migration via CLI.
-    # View the list of supported features at https://www.sea-ql.org/SeaORM/docs/install-and-config/database-and-async-runtime.
-    # e.g.
-    "runtime-tokio-rustls",  # `ASYNC_RUNTIME` feature
-    "sqlx-postgres",         # `DATABASE_DRIVER` feature
-]
+sea-orm-migration = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-rustls", "with-chrono"] }
 version = "2.0.0"

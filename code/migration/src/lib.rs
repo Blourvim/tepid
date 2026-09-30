@@ -1,4 +1,5 @@
 mod m20260923_200915_init;
+pub mod seed;
 pub use sea_orm_migration::prelude::*;
 
 pub struct Migrator;
