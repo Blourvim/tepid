@@ -10,6 +10,7 @@ pub struct Bloom {
 impl Bloom {
     const HASH_FUNC_QUANT: usize = 4;
 
+
     /// create a filter with `size` bits.
     /// `size` here is the number of bits, higher means a better rate of accuracy
     /// https://en.wikipedia.org/wiki/Bloom_filter#Probability_of_false_positives
