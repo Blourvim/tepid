@@ -1,63 +1,104 @@
 pub mod bloom;
 
-use std::{
-    io::{self, Read, Write},
-    net::{Shutdown, TcpListener, TcpStream},
-    thread,
+use std::{env, error::Error, time::Duration};
+
+use sea_orm::DatabaseConnection;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt, copy},
+    net::{TcpListener, TcpStream},
 };
 
-fn main() -> io::Result<()> {
-    let backend_listener = TcpListener::bind("0.0.0.0:3002")?;
+use crate::bloom::Bloom;
 
-    thread::spawn(move || {
-        for stream in backend_listener.incoming().flatten() {
-            thread::spawn(move || {
-                if let Err(e) = backend_handle(stream) {
-                    eprintln!("backend error: {e}");
+async fn hydrate(db: DatabaseConnection) -> Result<Bloom, Box<dyn Error>> {
+    todo!()
+}
+
+async fn start_db(connection_string: &str) -> Result<DatabaseConnection, sea_orm::DbErr> {
+    let mut opt = sea_orm::ConnectOptions::new(connection_string);
+    opt.max_connections(100)
+        .min_connections(5)
+        .connect_timeout(Duration::from_secs(8))
+        .acquire_timeout(Duration::from_secs(8))
+        .idle_timeout(Duration::from_secs(8))
+        .max_lifetime(Duration::from_secs(8))
+        .sqlx_logging(false)
+        .set_schema_search_path("tepid");
+
+    let db = sea_orm::Database::connect(opt).await?;
+    Ok(db)
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_connection = start_db(&database_url)
+        .await
+        .expect("Database connection failed");
+
+    let bloom_filter= hydrate(db_connection).await?;
+
+    let backend_listener = TcpListener::bind("0.0.0.0:3002").await?;
+
+    tokio::spawn(async move {
+        loop {
+            match backend_listener.accept().await {
+                Ok((stream, _)) => {
+                    tokio::spawn(async move {
+                        if let Err(e) = backend_handle(stream).await {
+                            eprintln!("backend error: {e}");
+                        }
+                    });
                 }
-            });
+                Err(e) => eprintln!("backend accept error: {e}"),
+            }
         }
     });
 
-    let listener = TcpListener::bind("0.0.0.0:3001")?;
-    for client in listener.incoming().flatten() {
-        thread::spawn(move || {
-            if let Err(e) = handle(client) {
-                eprintln!("proxy error: {e}");
+    let listener = TcpListener::bind("0.0.0.0:3001").await?;
+    loop {
+        match listener.accept().await {
+            Ok((client, _)) => {
+                tokio::spawn(async move {
+                    if let Err(e) = handle(client).await {
+                        eprintln!("proxy error: {e}");
+                    }
+                });
             }
-        });
+            Err(e) => eprintln!("proxy accept error: {e}"),
+        }
     }
-
-    Ok(())
 }
 
-fn handle(client: TcpStream) -> io::Result<()> {
-    let mut backend = TcpStream::connect("127.0.0.1:3002")?;
+async fn handle(client: TcpStream) -> std::io::Result<()> {
+    let backend = TcpStream::connect("127.0.0.1:3002").await?;
 
-    let mut req_reader = client.try_clone()?;   
-    let mut req_writer = backend.try_clone()?; 
+    // tokio::net::TcpStream has no try_clone(); use into_split for owned halves.
+    let (mut client_read, mut client_write) = client.into_split();
+    let (mut backend_read, mut backend_write) = backend.into_split();
 
-    thread::spawn(move || {
-        let _ = io::copy(&mut req_reader, &mut req_writer);
-        let _ = req_writer.shutdown(Shutdown::Write); 
+    // client -> backend
+    let c2b = tokio::spawn(async move {
+        let _ = copy(&mut client_read, &mut backend_write).await;
+        let _ = backend_write.shutdown().await;
     });
 
-    let mut resp_reader = backend;
-    let mut resp_writer = client;
-    let _ = io::copy(&mut resp_reader, &mut resp_writer);
+    // backend -> client
+    let _ = copy(&mut backend_read, &mut client_write).await;
+    let _ = client_write.shutdown().await;
 
-    let _ = resp_writer.shutdown(Shutdown::Write);
+    let _ = c2b.await;
 
     Ok(())
 }
 
-fn backend_handle(mut stream: TcpStream) -> io::Result<()> {
+async fn backend_handle(mut stream: TcpStream) -> std::io::Result<()> {
     let response = "hello";
-    stream.write_all(response.as_bytes())?;
+    stream.write_all(response.as_bytes()).await?;
 
-    stream.shutdown(Shutdown::Write)?; 
+    stream.shutdown().await?;
     let mut buf = [0u8; 1024];
-    while stream.read(&mut buf)? > 0 {}
+    while stream.read(&mut buf).await? > 0 {}
 
     Ok(())
 }
