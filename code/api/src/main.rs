@@ -1,5 +1,7 @@
 pub mod bloom;
 pub mod db;
+pub mod mock_backend;
+use crate::mock_backend::backend_handle;
 use std::{env, error::Error, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, copy},
@@ -143,14 +145,4 @@ fn extract_authorization_hash(head: &[u8]) -> Option<String> {
         }
     }
     None
-}
-
-async fn backend_handle(mut stream: TcpStream) -> std::io::Result<()> {
-    let response = "hello";
-    stream.write_all(response.as_bytes()).await?;
-    stream.shutdown().await?;
-    let mut buf = [0u8; 1024];
-    while stream.read(&mut buf).await? > 0 {}
-
-    Ok(())
 }
