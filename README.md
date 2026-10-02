@@ -37,5 +37,3 @@ do, if you need a feature let me know.
 This project is licensed under the GNU Affero General Public License v3.0 - see
 the [LICENSE](LICENSE) file for details.
 ````
-
-The theme: the first three make it actually usable as a revocation service (the current one is more of a snapshot), the rest make it deployable and measurable.
