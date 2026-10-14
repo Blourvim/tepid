@@ -3,7 +3,8 @@ pub mod db;
 pub mod mock_backend;
 pub mod handler;
 pub mod http;
-use crate::{handler::handle, mock_backend::backend_handle};
+pub mod ebpf;
+use crate::{handler::handle, mock_backend::backend_listen};
 use std::{env, error::Error, sync::Arc};
 
 use tokio::net::TcpListener;
@@ -20,22 +21,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let bloom_filter = Arc::new(hydrate(db_connection).await?);
 
-    let backend_listener = TcpListener::bind("0.0.0.0:3002").await?;
 
-    tokio::spawn(async move {
-        loop {
-            match backend_listener.accept().await {
-                Ok((stream, _)) => {
-                    tokio::spawn(async move {
-                        if let Err(e) = backend_handle(stream).await {
-                            eprintln!("backend error: {e}");
-                        }
-                    });
-                }
-                Err(e) => eprintln!("backend accept error: {e}"),
-            }
-        }
-    });
+    let _ =backend_listen().await;
 
     let listener = TcpListener::bind("0.0.0.0:3001").await?;
     loop {
